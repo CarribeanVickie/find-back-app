@@ -1,11 +1,11 @@
 import { Link } from "react-router-dom";
-import { Item } from "@/types/item";
+import { DbItem } from "@/hooks/useItems";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Package } from "lucide-react";
 
 interface ItemCardProps {
-  item: Item;
+  item: DbItem;
 }
 
 // Card component to display item summary in list views
@@ -20,17 +20,25 @@ const ItemCard = ({ item }: ItemCardProps) => {
             </CardTitle>
             <Badge
               variant="secondary"
-              className={item.status === "found" ? "status-found" : "status-lost"}
+              className={item.type === "found" ? "status-found" : "status-lost"}
             >
-              {item.status}
+              {item.type}
             </Badge>
           </div>
         </CardHeader>
         <CardContent>
-          {/* Placeholder image area */}
-          <div className="mb-3 flex h-24 items-center justify-center rounded-md bg-muted">
-            <Package className="h-8 w-8 text-muted-foreground" />
-          </div>
+          {/* Item image */}
+          {item.image_url ? (
+            <img
+              src={item.image_url}
+              alt={item.name}
+              className="mb-3 h-32 w-full rounded-md object-cover"
+            />
+          ) : (
+            <div className="mb-3 flex h-32 items-center justify-center rounded-md bg-muted">
+              <Package className="h-8 w-8 text-muted-foreground" />
+            </div>
+          )}
           
           {/* Category badge */}
           <Badge variant="outline" className="mb-2">
@@ -44,7 +52,7 @@ const ItemCard = ({ item }: ItemCardProps) => {
           
           {/* Date reported */}
           <p className="mt-2 text-xs text-muted-foreground">
-            Reported: {item.dateReported.toLocaleDateString()}
+            Reported: {new Date(item.created_at).toLocaleDateString()}
           </p>
         </CardContent>
       </Card>
