@@ -1,6 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useItems } from "@/context/ItemsContext";
+import { useAuthContext } from "@/context/AuthContext";
+import { useItems } from "@/hooks/useItems";
 import { CATEGORIES } from "@/types/item";
 import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
@@ -10,24 +11,33 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, CheckCircle, Upload, X } from "lucide-react";
+import { ArrowLeft, CheckCircle, Upload, X, Loader2 } from "lucide-react";
 
 // Form to report a lost item
 const ReportItem = () => {
   const navigate = useNavigate();
-  const { addItem } = useItems();
+  const { user, loading: authLoading } = useAuthContext();
+  const { addItem, uploadImage } = useItems();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/login");
+    }
+  }, [user, authLoading, navigate]);
 
   // Form state
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
-  const [image, setImage] = useState<string>("/placeholder.svg");
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
-  // Handle image file selection - converts to base64 for in-memory storage
+  // Handle image file selection
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -39,11 +49,10 @@ const ReportItem = () => {
         });
         return;
       }
+      setImageFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
-        const base64String = reader.result as string;
-        setImage(base64String);
-        setImagePreview(base64String);
+        setImagePreview(reader.result as string);
       };
       reader.readAsDataURL(file);
     }
@@ -51,7 +60,7 @@ const ReportItem = () => {
 
   // Remove selected image
   const removeImage = () => {
-    setImage("/placeholder.svg");
+    setImageFile(null);
     setImagePreview(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -59,10 +68,9 @@ const ReportItem = () => {
   };
 
   // Handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validation
     if (!name.trim() || !category || !description.trim()) {
       toast({
         title: "Missing Information",
@@ -72,21 +80,39 @@ const ReportItem = () => {
       return;
     }
 
-    // Add item with status "lost" and the uploaded image
-    addItem({
-      name: name.trim(),
-      category,
-      description: description.trim(),
-      image, // Use uploaded image or placeholder
-      status: "lost",
-    });
+    setIsSubmitting(true);
 
-    // Show success state
-    setIsSubmitted(true);
-    toast({
-      title: "Report Submitted!",
-      description: "Your lost item has been reported successfully.",
-    });
+    try {
+      let imageUrl: string | undefined;
+
+      // Upload image if selected
+      if (imageFile) {
+        imageUrl = await uploadImage(imageFile);
+      }
+
+      // Add item to database
+      await addItem({
+        name: name.trim(),
+        category,
+        description: description.trim(),
+        image_url: imageUrl,
+        type: "lost",
+      });
+
+      setIsSubmitted(true);
+      toast({
+        title: "Report Submitted!",
+        description: "Your lost item has been reported. It will appear after admin approval.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to submit report.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Success state after submission
@@ -97,31 +123,36 @@ const ReportItem = () => {
         <main className="container mx-auto px-4 py-8">
           <Card className="mx-auto max-w-md text-center">
             <CardContent className="pt-8 pb-8">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[hsl(var(--success))]/10">
-                <CheckCircle className="h-8 w-8 text-[hsl(var(--success))]" />
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                <CheckCircle className="h-8 w-8 text-green-600" />
               </div>
               <h2 className="text-xl font-bold text-foreground mb-2">
                 Report Submitted Successfully!
               </h2>
               <p className="text-muted-foreground mb-6">
-                Your lost item "{name}" has been added to our system. Check back later to see if it's been found.
+                Your lost item "{name}" has been submitted for review. It will appear publicly after admin approval.
               </p>
               <div className="flex gap-3 justify-center">
                 <Button variant="outline" onClick={() => navigate("/")}>
                   Go Home
                 </Button>
-                <Button onClick={() => {
-                  setIsSubmitted(false);
-                  setName("");
-                  setCategory("");
-                  setDescription("");
-                  removeImage();
-                }}>
-                  Report Another
+                <Button onClick={() => navigate("/my-items")}>
+                  View My Items
                 </Button>
               </div>
             </CardContent>
           </Card>
+        </main>
+      </div>
+    );
+  }
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="container mx-auto px-4 py-8 text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto" />
         </main>
       </div>
     );
@@ -132,12 +163,7 @@ const ReportItem = () => {
       <Header />
       
       <main className="container mx-auto px-4 py-8">
-        {/* Back button */}
-        <Button
-          variant="ghost"
-          className="mb-4"
-          onClick={() => navigate("/")}
-        >
+        <Button variant="ghost" className="mb-4" onClick={() => navigate("/")}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Home
         </Button>
@@ -146,7 +172,7 @@ const ReportItem = () => {
           <CardHeader>
             <CardTitle>Report Lost Item</CardTitle>
             <CardDescription>
-              Fill out the form below to report an item you've lost on campus.
+              Fill out the form below to report an item you've lost on campus. Your report will be reviewed before appearing publicly.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -234,8 +260,15 @@ const ReportItem = () => {
               </div>
 
               {/* Submit Button */}
-              <Button type="submit" className="w-full" size="lg">
-                Submit Report
+              <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  "Submit Report"
+                )}
               </Button>
             </form>
           </CardContent>

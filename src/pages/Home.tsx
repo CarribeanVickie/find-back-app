@@ -1,77 +1,111 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuthContext } from "@/context/AuthContext";
+import { useItems } from "@/hooks/useItems";
+import Header from "@/components/Header";
+import ItemCard from "@/components/ItemCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Search, Package } from "lucide-react";
-import Header from "@/components/Header";
+import { FileWarning, Search, Plus, Package } from "lucide-react";
 
-// Home screen with two main action buttons
 const Home = () => {
+  const { user, loading: authLoading } = useAuthContext();
+  const { items, loading: itemsLoading } = useItems();
+  const navigate = useNavigate();
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
+
       <main className="container mx-auto px-4 py-8">
-        {/* Welcome section */}
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-accent">
-            <Package className="h-8 w-8 text-accent-foreground" />
-          </div>
-          <h2 className="text-2xl font-bold text-foreground">
-            Welcome to Lost & Found
-          </h2>
-          <p className="mt-2 text-muted-foreground">
-            Lost something on campus? Found an item? We're here to help.
+        {/* Hero Section */}
+        <div className="text-center mb-10">
+          <h1 className="text-4xl font-bold text-foreground mb-3">
+            Campus Lost & Found
+          </h1>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            Lost something on campus? Report it here. Found something? Help reunite items with their owners.
           </p>
         </div>
 
-        {/* Two main action cards */}
-        <div className="mx-auto grid max-w-2xl gap-6 md:grid-cols-2">
-          {/* Report Lost Item Card */}
-          <Card className="transition-all hover:shadow-lg">
-            <CardHeader className="text-center">
-              <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
-                <FileText className="h-6 w-6 text-destructive" />
+        {/* Action Cards */}
+        <div className="grid gap-6 md:grid-cols-2 max-w-3xl mx-auto mb-12">
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-destructive/10 mb-2">
+                <FileWarning className="h-6 w-6 text-destructive" />
               </div>
               <CardTitle>Report Lost Item</CardTitle>
               <CardDescription>
-                Lost something? Report it here and we'll help you find it.
+                Lost something? Report it to help others find and return it to you.
               </CardDescription>
             </CardHeader>
-            <CardContent className="text-center">
-              <Link to="/report">
-                <Button className="w-full" size="lg">
+            <CardContent>
+              {user ? (
+                <Button onClick={() => navigate("/report")} className="w-full">
+                  <Plus className="mr-2 h-4 w-4" />
                   Report Lost Item
                 </Button>
-              </Link>
+              ) : (
+                <Button onClick={() => navigate("/login")} variant="outline" className="w-full">
+                  Sign in to Report
+                </Button>
+              )}
             </CardContent>
           </Card>
 
-          {/* Search Found Items Card */}
-          <Card className="transition-all hover:shadow-lg">
-            <CardHeader className="text-center">
-              <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-[hsl(var(--success))]/10">
-                <Search className="h-6 w-6 text-[hsl(var(--success))]" />
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader>
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 mb-2">
+                <Search className="h-6 w-6 text-primary" />
               </div>
               <CardTitle>Search Found Items</CardTitle>
               <CardDescription>
-                Browse items that have been found on campus.
+                Looking for something you lost? Browse items that have been found.
               </CardDescription>
             </CardHeader>
-            <CardContent className="text-center">
+            <CardContent>
               <Link to="/search">
-                <Button variant="secondary" className="w-full" size="lg">
-                  Search Found Items
+                <Button variant="outline" className="w-full">
+                  <Search className="mr-2 h-4 w-4" />
+                  Search Items
                 </Button>
               </Link>
             </CardContent>
           </Card>
         </div>
 
-        {/* Quick stats info */}
-        <div className="mt-12 text-center">
-          <p className="text-sm text-muted-foreground">
-            Helping students reconnect with their belongings since 2024
-          </p>
+        {/* Recently Approved Items */}
+        <div className="mt-12">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold">Recently Reported Items</h2>
+            <Button variant="ghost" onClick={() => navigate("/search")}>
+              View All →
+            </Button>
+          </div>
+
+          {itemsLoading || authLoading ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {[1, 2, 3].map((i) => (
+                <Card key={i} className="h-64 animate-pulse bg-muted" />
+              ))}
+            </div>
+          ) : items.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Package className="mx-auto mb-4 h-16 w-16 text-muted-foreground" />
+                <h3 className="text-lg font-semibold mb-2">No items yet</h3>
+                <p className="text-muted-foreground">
+                  Be the first to report a lost or found item!
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {items.slice(0, 6).map((item) => (
+                <ItemCard key={item.id} item={item} />
+              ))}
+            </div>
+          )}
         </div>
       </main>
     </div>
